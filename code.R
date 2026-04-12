@@ -233,23 +233,43 @@ coefs2 <- coefs2 %>%
                   "Volume"      = "Volume")
   )
 
+pd <- position_dodge(width = 0.45)
+
 fig_5 = ggplot(coefs2, aes(x = estimate, y = term, color = Periodo)) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
-  geom_errorbarh(aes(xmin = estimate - std.error,
-                     xmax = estimate + std.error),
-                 height = 0.2, linewidth = 0.9) +
-  geom_point(aes(fill = ifelse(sig == "significant", as.character(Periodo), "ns")),
-             shape = 21, size = 4, stroke = 1.2) +
+  
+  geom_errorbarh(
+    aes(
+      xmin = estimate - std.error,
+      xmax = estimate + std.error
+    ),
+    height = 0.2,
+    linewidth = 1.3,
+    position = pd
+  ) +
+  
+  geom_point(
+    aes(fill = ifelse(sig == "significant", as.character(Periodo), "ns")),
+    shape = 21,
+    size = 5,
+    stroke = 1.2,
+    position = pd
+  ) +
+  
   scale_color_manual(values = c("Dry" = "#33a02c", "Wet" = "#1f78b4")) +
-  scale_fill_manual(values = c("Dry" = "#33a02c",
-                               "Wet" = "#1f78b4",
-                               "ns" = "white")) +
+  scale_fill_manual(values = c(
+    "Dry" = "#33a02c",
+    "Wet" = "#1f78b4",
+    "ns" = "white"
+  )) +
   coord_cartesian(xlim = c(-0.20, 0.20)) +
   facet_wrap(~ response, scales = "fixed") +
   theme_classic(base_size = 18) +
   theme(legend.position = "none") +
-  labs(x = "Model coefficient (± SE)",
-       y = NULL)
+  labs(
+    x = "Model coefficient (± SE)",
+    y = NULL
+  )
 
 fig_5
 
