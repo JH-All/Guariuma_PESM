@@ -3,7 +3,7 @@ packages = c("adespatial", "tidyverse", "vegan", "readxl", "hrbrthemes",
              "viridis", "ggbeeswarm", "ggthemes", "iNEXT",
              "spaa", "cowplot", "FactoMineR", "factoextra",
              "writexl", "fields", "reshape2", "ade4", "readr", "car",
-             "MASS", "broom", "ggrepel", "grid")
+             "MASS", "broom", "ggrepel", "grid", "performance")
 lapply(
   packages,
   FUN = function(x) {
@@ -72,6 +72,7 @@ fviz_screeplot(pca.p, addlabels = TRUE, ylim = c(0, 70), main = "",
 var_env <- get_pca_var(pca.p)
 summary(pca.p)
 
+## Figure 2 ------------------------------------------
 fig2 = fviz_pca_biplot(pca.p,
                 geom.ind = "point", 
                 fill.ind = env$Periodo, 
@@ -112,7 +113,7 @@ result <- iNEXT(datlist,
                 se = TRUE, 
                 nboot = 999)
 
-
+## Figure 3 -----------------------------------
 fig3 = ggiNEXT(result, type = 1) +
   scale_color_manual(
     values = c("#33a02c", "#1f78b4"),
@@ -171,15 +172,23 @@ fig4_c
 
 wilcox.test(effective ~ Periodo, data = data) # W = 158.5, p = 0.58
 
+## Figure 4 ------------------------------------
 fig_4 = plot_grid(fig4_a, fig4_b, fig4_c, labels = "AUTO", nrow = 1)
 fig_4
 
 ggsave("Figure_4.jpg", fig_4, width = 12, height = 4)
 
-# Predictors -----------------
+# Figure 5 -----------------
+preds <- c("Volume", "Stream_dist", "camarao")
+
 env_dry <- filter(env, Periodo == "Dry")
 env_wet <- filter(env, Periodo == "Wet")
-preds <- c("Volume", "Stream_dist", "camarao")
+
+env_dry <- env_dry %>%
+  mutate(across(all_of(preds), ~ scale(.x)[, 1]))
+
+env_wet <- env_wet %>%
+  mutate(across(all_of(preds), ~ scale(.x)[, 1]))
 
 vif_dry <- lm(abund ~ Volume + Stream_dist + camarao, data = env_dry)
 vif(vif_dry)
@@ -189,17 +198,37 @@ vif(vif_wet)
 
 m_abund_dry <- glm.nb(abund ~ Volume + Stream_dist + camarao, data = env_dry)
 m_abund_wet <- glm.nb(abund ~ Volume + Stream_dist + camarao, data = env_wet)
-m_S_dry <- glm.nb(S ~ Volume + Stream_dist + camarao, data = env_dry)
-m_S_wet <- glm.nb(S ~ Volume + Stream_dist + camarao, data = env_wet)
-m_eff_dry <- glm(effec ~ Volume + Stream_dist + camarao,
-                 data = env_dry,
-                 family = Gamma(link = "log"))
-m_eff_wet <- glm(effec ~ Volume + Stream_dist + camarao,
-                 data = env_wet,
-                 family = Gamma(link = "log"))
+
+r2(m_abund_dry)
+r2(m_abund_wet)
+
+m_S_dry_pois <- glm(S ~ Volume + Stream_dist + camarao,
+                    data = env_dry,
+                    family = poisson)
+
+m_S_wet_pois <- glm(S ~ Volume + Stream_dist + camarao,
+                    data = env_wet,
+                    family = poisson)
+r2(m_S_dry_pois)
+r2(m_S_wet_pois)
+
+m_eff_dry <- glm(
+  effec ~ Volume + Stream_dist + camarao,
+  data = env_dry,
+  family = Gamma(link = "log")
+)
+
+m_eff_wet <- glm(
+  effec ~ Volume + Stream_dist + camarao,
+  data = env_wet,
+  family = Gamma(link = "log")
+)
+
+r2(m_eff_dry)
+r2(m_eff_wet)
 
 extract_coefs <- function(model, response, period){
-  tidy(model) %>%
+  tidy(model, conf.int = TRUE) %>%
     filter(term != "(Intercept)") %>%
     mutate(
       response = response,
@@ -207,6 +236,7 @@ extract_coefs <- function(model, response, period){
       sig = ifelse(p.value < 0.05, "significant", "ns")
     )
 }
+
 
 coefs <- bind_rows(
   extract_coefs(m_abund_dry, "Abundance", "Dry"),
@@ -219,33 +249,31 @@ coefs <- bind_rows(
 
 coefs2 <- coefs %>%
   mutate(
-    response = dplyr::recode(response,
-                             "Effective" = "ENS"),
+    response = dplyr::recode(response, "Effective" = "ENS"),
     response = factor(response, levels = c("Abundance", "Richness", "ENS")),
-    sig = factor(sig, levels = c("ns", "significant"))
-  )
-
-coefs2 <- coefs2 %>%
-  mutate(
-    term = dplyr::recode(term,
-                  "Stream_dist" = "Stream distance",
-                  "camarao"     = "Shrimp",
-                  "Volume"      = "Volume")
+    sig = factor(sig, levels = c("ns", "significant")),
+    term = dplyr::recode(
+      term,
+      "Stream_dist" = "Stream distance",
+      "camarao" = "Shrimp",
+      "Volume" = "Volume"
+    )
   )
 
 pd <- position_dodge(width = 0.45)
 
-fig_5 = ggplot(coefs2, aes(x = estimate, y = term, color = Periodo)) +
+fig_5 <- ggplot(coefs2, aes(x = estimate, y = term, color = Periodo, group = Periodo)) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
   
-  geom_errorbarh(
+  geom_errorbar(
     aes(
-      xmin = estimate - std.error,
-      xmax = estimate + std.error
+      xmin = conf.low,
+      xmax = conf.high
     ),
-    height = 0.2,
+    width = 0.2,
     linewidth = 1.3,
-    position = pd
+    position = pd,
+    orientation = "y"
   ) +
   
   geom_point(
@@ -262,12 +290,12 @@ fig_5 = ggplot(coefs2, aes(x = estimate, y = term, color = Periodo)) +
     "Wet" = "#1f78b4",
     "ns" = "white"
   )) +
-  coord_cartesian(xlim = c(-0.20, 0.20)) +
+  coord_cartesian(xlim = c(-1, 1)) +
   facet_wrap(~ response, scales = "fixed") +
   theme_classic(base_size = 18) +
   theme(legend.position = "none") +
   labs(
-    x = "Model coefficient (± SE)",
+    x = "Model coefficient (95% CI)",
     y = NULL
   )
 
@@ -384,6 +412,7 @@ plot_rda <- function(rda_mod, period = c("Dry", "Wet"), title = NULL,
   p
 }
 
+## Figure 6 ----------------------------------------
 fig6_a = plot_rda(rda_dry$rda, period = "Dry", title = "Dry period")+
   labs(title = NULL, x = "RDA1 (52.67%)", y = "RDA2 (7.81%)")+
   theme_classic(base_size = 18)
