@@ -113,8 +113,8 @@ result <- iNEXT(datlist,
                 se = TRUE, 
                 nboot = 999)
 
-## Figure 3 -----------------------------------
-fig3 = ggiNEXT(result, type = 1) +
+## Figure 4 -----------------------------------
+fig4 = ggiNEXT(result, type = 1) +
   scale_color_manual(
     values = c("#33a02c", "#1f78b4"),
     labels = c("Dry", "Wet")
@@ -127,12 +127,12 @@ fig3 = ggiNEXT(result, type = 1) +
   theme_classic(base_size = 18)+
   labs(x = "Number of sampled pools", y = "Species richness")
 
-fig3
+fig4
 
-ggsave("Figure_3.jpg", fig3)
+ggsave("Figure_4.jpg", fig4)
 
 # Abundance and diversity  ----------------
-fig4_a = data %>% 
+fig5_a = data %>% 
   ggplot(aes(x = Periodo, y = Abundance, fill = Periodo))+
   geom_boxplot(width = 0.45, show.legend = F, alpha = 0.8)+
   geom_jitter(width = 0.12, shape = 21, size = 4.5,
@@ -141,11 +141,11 @@ fig4_a = data %>%
   theme_classic(base_size = 18)+
   labs(x = NULL)
 
-fig4_a
+fig5_a
 
 wilcox.test(Abundance ~ Periodo, data = data) # W = 151, p = 0.78
 
-fig4_b = data %>% 
+fig5_b = data %>% 
   ggplot(aes(x = Periodo, y = S, fill = Periodo))+
   geom_boxplot(width = 0.45, show.legend = F, alpha = 0.8)+
   geom_jitter(width = 0.12, shape = 21, size = 4.5,
@@ -154,12 +154,12 @@ fig4_b = data %>%
   theme_classic(base_size = 18)+
   labs(x = NULL, y = "Species richness")
 
-fig4_b
+fig5_b
 
 wilcox.test(S ~ Periodo, data = data) # W = 168, p = 0.36
 
 
-fig4_c = data %>% 
+fig5_c = data %>% 
   ggplot(aes(x = Periodo, y = effective, fill = Periodo))+
   geom_boxplot(width = 0.45, show.legend = F, alpha = 0.8)+
   geom_jitter(width = 0.12, shape = 21, size = 4.5,
@@ -168,17 +168,17 @@ fig4_c = data %>%
   theme_classic(base_size = 18)+
   labs(x = NULL, y = "Effective number of species")
 
-fig4_c
+fig5_c
 
 wilcox.test(effective ~ Periodo, data = data) # W = 158.5, p = 0.58
 
-## Figure 4 ------------------------------------
-fig_4 = plot_grid(fig4_a, fig4_b, fig4_c, labels = "AUTO", nrow = 1)
-fig_4
+## Figure 5 ------------------------------------
+fig_5 = plot_grid(fig5_a, fig5_b, fig5_c, labels = "AUTO", nrow = 1)
+fig_5
 
-ggsave("Figure_4.jpg", fig_4, width = 12, height = 4)
+ggsave("Figure_5.jpg", fig_5, width = 12, height = 4)
 
-# Figure 5 -----------------
+# Figure 6 -----------------
 preds <- c("Volume", "Stream_dist", "camarao")
 
 env_dry <- filter(env, Periodo == "Dry")
@@ -262,7 +262,7 @@ coefs2 <- coefs %>%
 
 pd <- position_dodge(width = 0.45)
 
-fig_5 <- ggplot(coefs2, aes(x = estimate, y = term, color = Periodo, group = Periodo)) +
+fig_6 <- ggplot(coefs2, aes(x = estimate, y = term, color = Periodo, group = Periodo)) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
   
   geom_errorbar(
@@ -299,9 +299,9 @@ fig_5 <- ggplot(coefs2, aes(x = estimate, y = term, color = Periodo, group = Per
     y = NULL
   )
 
-fig_5
+fig_6
 
-ggsave("Figure_5.jpg", fig_5, width = 12, height = 6)
+ggsave("Figure_6.jpg", fig_6, width = 12, height = 6)
 
 # PERMANOVA --------------------------
 data$Periodo <- as.factor(data$Periodo)
@@ -412,17 +412,17 @@ plot_rda <- function(rda_mod, period = c("Dry", "Wet"), title = NULL,
   p
 }
 
-## Figure 6 ----------------------------------------
-fig6_a = plot_rda(rda_dry$rda, period = "Dry", title = "Dry period")+
+## Figure 7 ----------------------------------------
+fig7_a = plot_rda(rda_dry$rda, period = "Dry", title = "Dry period")+
   labs(title = NULL, x = "RDA1 (52.67%)", y = "RDA2 (7.81%)")+
   theme_classic(base_size = 18)
-fig6_b = plot_rda(rda_wet$rda, period = "Wet", title = "Wet period")+
+fig7_b = plot_rda(rda_wet$rda, period = "Wet", title = "Wet period")+
   labs(title = NULL, x = "RDA1 (9.59%)", y = "RDA2 (3.81%)")+
   theme_classic(base_size = 18)+
   scale_x_continuous(limits = c(-0.9, 0.9))
 
-fig6_a
-fig6_b
+fig7_a
+fig7_b
 
-fig_6 = plot_grid(fig6_a, fig6_b, labels = "AUTO", nrow = 1)
-ggsave("Figure_6.jpg", fig_6, width = 10, height = 4)
+fig_7 = plot_grid(fig7_a, fig7_b, labels = "AUTO", nrow = 1)
+ggsave("Figure_7.jpg", fig_7, width = 10, height = 4)
