@@ -173,7 +173,11 @@ fig5_c
 wilcox.test(effective ~ Periodo, data = data) # W = 158.5, p = 0.58
 
 ## Figure 5 ------------------------------------
-fig_5 = plot_grid(fig5_a, fig5_b, fig5_c, labels = "AUTO", nrow = 1)
+fig_5 = plot_grid(
+  fig5_a, fig5_b, fig5_c,
+  labels = c("(a)", "(b)", "(c)"),
+  nrow = 1
+)
 fig_5
 
 ggsave("Figure_5.jpg", fig_5, width = 12, height = 4)
@@ -509,5 +513,5 @@ fig7_D = plot_rda(rda_wet$rda, period = "Wet", title = "Wet period")+
 fig7_D
 
 fig_7 = plot_grid(fig7_A, fig7_B, fig7_C, fig7_D, 
-                  labels = "AUTO", nrow = 2)
+                  labels = c("(a)", "(b)", "(c)", "(d)"), nrow = 2)
 ggsave("Figure_7.jpg", fig_7, width = 11, height = 9)
