@@ -307,6 +307,7 @@ ggsave("Figure_6.jpg", fig_6, width = 12, height = 6)
 data$Periodo <- as.factor(data$Periodo)
 levels(data$Periodo)
 
+## Abundance -----------------------------------
 distancia <- vegdist(com, method = "bray")
 
 resultado_permanova <- adonis2(distancia ~ data$Periodo, permutations = 999)
@@ -314,6 +315,85 @@ print(resultado_permanova)
 dispersao <- betadisper(distancia,data$Periodo)
 anova(dispersao)  
 # PERMANOVA: F = 0.62, p = 0.701; PERMDISP: F = 0.96, p = 0.334
+
+## Presence-absence --------------------------------
+com_pa <- decostand(com, method = "pa")
+distancia_jaccard <- vegdist(com_pa, method = "jaccard", binary = TRUE)
+resultado_permanova_jaccard <- adonis2(distancia_jaccard ~ Periodo,
+                                       data = data,
+                                       permutations = 999)
+
+print(resultado_permanova_jaccard)
+dispersao_jaccard <- betadisper(distancia_jaccard, data$Periodo)
+anova(dispersao_jaccard)
+
+# PERMANOVA: F = 0.68, p = 0.53; PERMDISP: F = 0.23, p = 0.64
+
+# NMDS -------------------------------
+## Figure 7A -------------------------
+nmds <- metaMDS(com, 
+                distance = "bray", 
+                k = 2,    
+                trymax = 100) 
+
+nmds
+
+scores_nmds <- as.data.frame(scores(nmds, display = "sites"))
+scores_nmds$Periodo <- data$Periodo
+levels(scores_nmds$Periodo)
+levels(scores_nmds$Periodo) <- c("Wet", "Dry")
+
+fig7_A = ggplot(scores_nmds, aes(x = NMDS1, y = NMDS2, fill = Periodo,
+                        color = Periodo)) +
+  geom_point(size = 5, shape = 21, alpha = 0.8,
+             color = "black", show.legend = F) +
+  stat_ellipse(type = "t", linetype = 2,
+               show.legend = F) +
+  theme_classic(base_size = 18) +
+  labs(
+    x = "NMDS1",
+    y = "NMDS2",
+    fill = "Period"
+  )+
+  scale_fill_manual(values = c("#1f78b4", "#33a02c"))+
+  scale_color_manual(values = c("#1f78b4", "#33a02c"))
+
+fig7_A
+
+## Figure 7B -----------------------------
+set.seed(123)
+nmds_jaccard <- metaMDS(com_pa,
+                        distance = "jaccard",
+                        binary = TRUE,
+                        k = 2,
+                        trymax = 500,
+                        maxit = 999)
+
+nmds_jaccard
+
+scores_nmds_jaccard <- as.data.frame(scores(nmds_jaccard, display = "sites"))
+scores_nmds_jaccard$Periodo <- data$Periodo
+
+levels(scores_nmds_jaccard$Periodo)
+levels(scores_nmds_jaccard$Periodo) <- c("Wet", "Dry")
+
+fig7_B = ggplot(scores_nmds_jaccard,
+       aes(x = NMDS1, y = NMDS2, color = Periodo,
+           fill = Periodo)) +
+  geom_point(size = 5, shape = 21, alpha = 0.8,
+             color = "black", show.legend = F) +
+  stat_ellipse(type = "t", linetype = 2,
+               show.legend = F) +
+  theme_classic(base_size = 18) +
+  labs(
+    x = "NMDS1",
+    y = "NMDS2",
+    fill = "Period"
+  )+
+  scale_fill_manual(values = c("#1f78b4", "#33a02c"))+
+  scale_color_manual(values = c("#1f78b4", "#33a02c"))
+
+fig7_B
 
 # RDA -------------------------------
 env <- env %>%
@@ -413,16 +493,21 @@ plot_rda <- function(rda_mod, period = c("Dry", "Wet"), title = NULL,
 }
 
 ## Figure 7 ----------------------------------------
-fig7_a = plot_rda(rda_dry$rda, period = "Dry", title = "Dry period")+
+### Figure 7C --------------------------
+fig7_C = plot_rda(rda_dry$rda, period = "Dry", title = "Dry period")+
   labs(title = NULL, x = "RDA1 (52.67%)", y = "RDA2 (7.81%)")+
   theme_classic(base_size = 18)
-fig7_b = plot_rda(rda_wet$rda, period = "Wet", title = "Wet period")+
+
+fig7_C
+
+### Figure 7D --------------------------
+fig7_D = plot_rda(rda_wet$rda, period = "Wet", title = "Wet period")+
   labs(title = NULL, x = "RDA1 (9.59%)", y = "RDA2 (3.81%)")+
   theme_classic(base_size = 18)+
   scale_x_continuous(limits = c(-0.9, 0.9))
 
-fig7_a
-fig7_b
+fig7_D
 
-fig_7 = plot_grid(fig7_a, fig7_b, labels = "AUTO", nrow = 1)
-ggsave("Figure_7.jpg", fig_7, width = 10, height = 4)
+fig_7 = plot_grid(fig7_A, fig7_B, fig7_C, fig7_D, 
+                  labels = "AUTO", nrow = 2)
+ggsave("Figure_7.jpg", fig_7, width = 11, height = 9)
