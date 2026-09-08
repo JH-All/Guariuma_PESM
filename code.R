@@ -24,7 +24,10 @@ data$Larg_maxima_m <- as.numeric(data$Larg_maxima_m)
 data$Prof_maxima_cm <- as.numeric(data$Prof_maxima_cm)
 data$depth_m <- data$Prof_maxima_cm/ 100
 
-V = (2/3) * pi * data$Comp_maximo_m * data$Larg_maxima_m  * data$depth_m
+V <- (2/3) * pi *
+  (data$Comp_maximo_m / 2) *
+  (data$Larg_maxima_m / 2) *
+  data$depth_m
 env$Volume <- V
 data$Distancia_riacho_proximo = as.numeric(data$Distancia_riacho_proximo)
 env$Stream_dist= as.numeric(data$Distancia_riacho_proximo)
@@ -92,6 +95,90 @@ fig2
 
 ggsave("Figure_2.jpg", fig2)
 
+# Distance among pools ------------------------------
+padrao <- paste0(
+  "(\\d+)\\D+(\\d+)\\D+(\\d+(?:[.,]\\d+)?)\\D*([NS])",
+  "\\s*",
+  "(\\d+)\\D+(\\d+)\\D+(\\d+(?:[.,]\\d+)?)\\D*([EW])"
+)
+
+coord <- str_match(
+  str_to_upper(as.character(data$Coordenadas)),
+  padrao
+)
+
+if (any(is.na(coord[, 1]))) {
+  stop("Há coordenadas ausentes ou fora do formato esperado.")
+}
+
+numero <- function(x) {
+  as.numeric(str_replace(x, ",", "."))
+}
+
+pocas <- data %>%
+  mutate(
+    latitude = (
+      numero(coord[, 2]) +
+        numero(coord[, 3]) / 60 +
+        numero(coord[, 4]) / 3600
+    ) * ifelse(coord[, 5] == "S", -1, 1),
+    
+    longitude = (
+      numero(coord[, 6]) +
+        numero(coord[, 7]) / 60 +
+        numero(coord[, 8]) / 3600
+    ) * ifelse(coord[, 9] == "W", -1, 1)
+  )
+
+if (any(is.na(pocas$Periodo))) {
+  stop("Há valores ausentes em Periodo.")
+}
+
+
+calcular_vizinha <- function(df) {
+  
+  if (nrow(df) < 2) {
+    stop("Cada período precisa ter pelo menos duas poças.")
+  }
+  
+  pontos <- st_as_sf(
+    df,
+    coords = c("longitude", "latitude"),
+    crs = 4326
+  )
+  
+  distancias <- st_distance(pontos)
+  
+  distancias <- units::drop_units(
+    units::set_units(distancias, "m")
+  )
+  
+  diag(distancias) <- Inf
+  
+  df$dist_vizinha_m <- apply(distancias, 1, min)
+  
+  df
+}
+
+distancias_por_poca <- pocas %>%
+  group_by(Periodo) %>%
+  group_modify(~ calcular_vizinha(.x)) %>%
+  ungroup()
+
+resumo_distancias <- distancias_por_poca %>%
+  group_by(Periodo) %>%
+  summarise(
+    n = n(),
+    media_m = mean(dist_vizinha_m),
+    dp_m = sd(dist_vizinha_m),
+    mediana_m = median(dist_vizinha_m),
+    minimo_m = min(dist_vizinha_m),
+    maximo_m = max(dist_vizinha_m),
+    .groups = "drop"
+  )
+
+resumo_distancias
+
 # iNEXT -------------------------
 datlist <- list()
 com_inext <- com
@@ -137,7 +224,7 @@ fig5_a = data %>%
   geom_boxplot(width = 0.45, show.legend = F, alpha = 0.8)+
   geom_jitter(width = 0.12, shape = 21, size = 4.5,
               show.legend = F, alpha = 0.6)+
-  scale_fill_manual(values = c("#33a02c", "#1f78b4"))+
+  scale_fill_manual(values = c( "#1f78b4", "#33a02c"))+
   theme_classic(base_size = 18)+
   labs(x = NULL)
 
@@ -150,7 +237,7 @@ fig5_b = data %>%
   geom_boxplot(width = 0.45, show.legend = F, alpha = 0.8)+
   geom_jitter(width = 0.12, shape = 21, size = 4.5,
               show.legend = F, alpha = 0.6)+
-  scale_fill_manual(values = c("#33a02c", "#1f78b4"))+
+  scale_fill_manual(values = c("#1f78b4", "#33a02c"))+
   theme_classic(base_size = 18)+
   labs(x = NULL, y = "Species richness")
 
@@ -164,7 +251,7 @@ fig5_c = data %>%
   geom_boxplot(width = 0.45, show.legend = F, alpha = 0.8)+
   geom_jitter(width = 0.12, shape = 21, size = 4.5,
               show.legend = F, alpha = 0.6)+
-  scale_fill_manual(values = c("#33a02c", "#1f78b4"))+
+  scale_fill_manual(values = c("#1f78b4", "#33a02c"))+
   theme_classic(base_size = 18)+
   labs(x = NULL, y = "Effective number of species")
 
@@ -172,15 +259,76 @@ fig5_c
 
 wilcox.test(effective ~ Periodo, data = data) # W = 158.5, p = 0.58
 
-## Figure 5 ------------------------------------
-fig_5 = plot_grid(
-  fig5_a, fig5_b, fig5_c,
-  labels = c("(a)", "(b)", "(c)"),
-  nrow = 1
+
+data_K <- data %>%
+  mutate(
+    K = log(pmax(S, 1)) / log(pmax(Abundance, 2)),
+    K = replace(
+      K,
+      is.na(S) | is.na(Abundance) | S < 1 | Abundance <= 1,
+      NA_real_
+    )
+  )
+
+
+data_K %>%
+  group_by(Periodo) %>%
+  summarise(
+    n_total = n(),
+    n_K = sum(!is.na(K)),
+    K_zero = sum(K == 0, na.rm = TRUE),
+    K_ausente = sum(is.na(K)),
+    .groups = "drop"
+  )
+
+data_K_valid <- data_K %>%
+  filter(!is.na(K))
+
+teste_K <- wilcox.test(
+  K ~ Periodo,
+  data = data_K_valid,
+  exact = FALSE,
+  correct = TRUE
 )
+
+teste_K # W = 112.5, p = 0.57
+
+fig5_d <- ggplot(
+  data_K_valid,
+  aes(x = Periodo, y = K, fill = Periodo)
+) +
+  geom_boxplot(
+    width = 0.45,
+    show.legend = FALSE,
+    alpha = 0.8,
+    outlier.shape = NA
+  ) +
+  geom_jitter(
+    width = 0.12,
+    height = 0,
+    shape = 21,
+    size = 4.5,
+    show.legend = FALSE,
+    alpha = 0.6
+  ) +
+  scale_fill_manual(
+    values = c("Dry" = "#33a02c", "Wet" = "#1f78b4")
+  ) +
+  theme_classic(base_size = 18) +
+  labs(x = NULL, y = "Margalef's K")
+
+fig5_d
+
+## Figure 5 ------------------------------------
+fig_5 <- cowplot::plot_grid(
+  fig5_a, fig5_b, fig5_c, fig5_d,
+  labels = c("(a)", "(b)", "(c)", "(d)"),
+  ncol = 2
+)
+
 fig_5
 
-ggsave("Figure_5.jpg", fig_5, width = 12, height = 4)
+ggsave("Figure_5.jpg", fig_5, width = 10, height = 8)
 
 # Figure 6 -----------------
 preds <- c("Volume", "Stream_dist", "camarao")
@@ -229,7 +377,7 @@ m_eff_wet <- glm(
 )
 
 r2(m_eff_dry)
-r2(m_eff_wet)
+  r2(m_eff_wet)
 
 extract_coefs <- function(model, response, period){
   tidy(model, conf.int = TRUE) %>%
@@ -245,8 +393,8 @@ extract_coefs <- function(model, response, period){
 coefs <- bind_rows(
   extract_coefs(m_abund_dry, "Abundance", "Dry"),
   extract_coefs(m_abund_wet, "Abundance", "Wet"),
-  extract_coefs(m_S_dry, "Richness", "Dry"),
-  extract_coefs(m_S_wet, "Richness", "Wet"),
+  extract_coefs(m_S_dry_pois, "Richness", "Dry"),
+  extract_coefs(m_S_wet_pois, "Richness", "Wet"),
   extract_coefs(m_eff_dry, "Effective", "Dry"),
   extract_coefs(m_eff_wet, "Effective", "Wet")
 )
@@ -515,3 +663,32 @@ fig7_D
 fig_7 = plot_grid(fig7_A, fig7_B, fig7_C, fig7_D, 
                   labels = c("(a)", "(b)", "(c)", "(d)"), nrow = 2)
 ggsave("Figure_7.jpg", fig_7, width = 11, height = 9)
+
+
+# Supplement A - Figure S1 -----------------------------
+filtered_itanhaem <- read_csv("filtered_itanhaem.csv")
+
+df_pluviosidade = filtered_itanhaem[-1,]
+
+df_pluviosidade$Month <- as.factor(df_pluviosidade$Month)
+df_pluviosidade$Month <- factor(df_pluviosidade$Month, levels = c( "January",
+                                                                   "February", "March", "April", "May", "June",
+                                                                   "July", "August", "September", "October", 
+                                                                   "November", "December"))
+
+pluv_plot = df_pluviosidade %>% 
+  ggplot(aes(x = Month, y = Balneario_Gaivota))+
+  geom_boxplot(width = 0.7, fill = "darkorange", alpha = 0.7)+
+  geom_jitter(width = 0.15, shape = 21, fill = "darkorange",
+              size = 4.2, alpha = 0.8)+
+  theme_classic(base_size = 18) +
+  labs(fill = NULL, x = NULL, y = "Precipitation (mm)")+
+  scale_y_continuous(limits = c(0,700), breaks = seq(0, 700, by = 100))+
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  )
+
+pluv_plot 
+
+
+ggsave("Figure_S1.jpg", pluv_plot, width = 10, height = 7)
